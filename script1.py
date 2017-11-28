@@ -81,8 +81,8 @@ if __name__ == "__main__":
     start = time.time()
     observations, labels = getData()
 
-    discretizeHidden(labels, 10000) #change 2nd parameter to adjust dicretization size
-    print(time.time() - start) #takes roughly 5 ~ 7 minutes
+    # discretizeHidden(labels, 10000) #change 2nd parameter to adjust dicretization size
+    # print(time.time() - start) #takes roughly 5 ~ 7 minutes
 
-    discretizeObs(observations, 100) #change 2nd parameter to adjust dicretization size
-    print(time.time() - start)  #takes roughly 1 hour to run rip
+    discretizeObs(observations, 1000) #change 2nd parameter to adjust dicretization size
+    print(time.time() - start)  #takes roughly 40 min to run rip
