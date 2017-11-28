@@ -28,13 +28,18 @@ def discretizeObs(obs, size=100):
     
     unit = (maxVal - minVal)/size + OFFSET
 
+    data = []
     for i in range(obs.shape[0]):
+        temp = []
         for j in range(obs.shape[1]):
             angle = obs.loc[i,j]
-            s = round((angle-minVal)/unit)
-            obs.loc[i,j] = s
+            s = math.floor((angle-minVal)/unit)
+            # obs.loc[i,j] = s
+            temp.append(s)
+        data.append(temp)
 
-    obs.to_csv("Observations_" + str(size) + ".csv", sep=',', index=False)
+    df = pd.DataFrame(np.array(data))
+    df.to_csv("Observations_" + str(size) + ".csv", sep=',', index=False, header=False)
 
 """
     Discretizes hidden states (actual position)
@@ -62,22 +67,22 @@ def discretizeHidden(labels, size=10000):
         x = labels.loc[k,2]
         y = labels.loc[k,3]
 
-        i = round((x-min_x)/x_unit)
-        j = round((y-min_y)/y_unit)
+        i = math.floor((x-min_x)/x_unit)
+        j = math.floor((y-min_y)/y_unit)
 
         states.append(int(i*w + j))
 
     df = pd.DataFrame({'state': states})
 
     labels = labels.join(df)
-    labels.to_csv("Label_" + str(size) + ".csv", sep=',', index=False)
+    labels.to_csv("Label_" + str(size) + ".csv", sep=',', index=False, header=False)
 
 if __name__ == "__main__":
     start = time.time()
     observations, labels = getData()
 
-    # discretizeHidden(labels, 100) #change 2nd parameter to adjust dicretization size
-    # print(time.time() - start) #takes roughly 5 ~ 7 minutes
+    discretizeHidden(labels, 10000) #change 2nd parameter to adjust dicretization size
+    print(time.time() - start) #takes roughly 5 ~ 7 minutes
 
     discretizeObs(observations, 100) #change 2nd parameter to adjust dicretization size
-    print(time.time() - start)
+    print(time.time() - start)  #takes roughly 1 hour to run rip
