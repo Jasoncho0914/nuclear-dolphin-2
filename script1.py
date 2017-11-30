@@ -30,10 +30,11 @@ def discretizeObs(obs, size=100):
 
     data = []
     #this part would be faster if it was numpy object oops
-    for i in range(obs.shape[0]):
+    obs = np.array(obs)
+    for i in range(len(obs)):
         temp = []
-        for j in range(obs.shape[1]):
-            angle = obs.loc[i,j]
+        for j in range(len(obs[i])):
+            angle = obs[i][j]
             s = math.floor((angle-minVal)/unit)
             # obs.loc[i,j] = s
             temp.append(s)
@@ -64,9 +65,10 @@ def discretizeHidden(labels, size=10000):
 
     states = []
     #this part would be faster if it was numpy object oops
-    for k in range(labels.shape[0]):
-        x = labels.loc[k,2]
-        y = labels.loc[k,3]
+    labels_n = np.array(labels)
+    for k in range(len(labels_n)):
+        x = labels_n[k][2]
+        y = labels_n[k][3]
 
         i = math.floor((x-min_x)/x_unit)
         j = math.floor((y-min_y)/y_unit)
@@ -82,16 +84,12 @@ if __name__ == "__main__":
     start = time.time()
     observations, labels = getData()
 
-    for x in [400, 2500, 5000, 75000]:
-        print("Starting hidden {}".format(x))
-        discretizeHidden(labels, x) #change 2nd parameter to adjust dicretization size
-        print("...DONE")
+    discretizeHidden(labels, 64) #change 2nd parameter to adjust dicretization size
+    print("...DONE")
     # print(time.time() - start) #takes roughly 5 ~ 7 minutes
 
-    for x in [400, 2500, 5000, 7500]:
-        print('Starting obs {}'.format(x))
-        discretizeObs(observations, x) #change 2nd parameter to adjust dicretization size
-        print("...DONE")
+    # discretizeObs(observations, x) #change 2nd parameter to adjust dicretization size
+    # print("...DONE")
     # print(time.time() - start)  # takes roughly 40 min to run rip
 
     print("ALL DONE")

@@ -8,10 +8,11 @@ from pomegranate import *
 import csv
 import json
 import operator
+from hmmlearn import hmm
 
 #change if necessary
-N_OBS = 1000
-N_STATES = 100
+N_OBS = 100
+N_STATES = 64
 
 OBSERVATIONS_DATA_PATH = "./Observations_" + str(N_OBS) + ".csv"
 LABELS_PATH = "./Label_" + str(N_STATES) + ".csv"
@@ -44,12 +45,14 @@ def writeCSV(data, name, header=None):
 def findDistribution(observations, labels):
     print('Finding initial distributions...\n')
     d = {}
-    for k in range(labels.shape[0]):
-        i = labels.loc[k, 0] - 1
-        j = labels.loc[k, 1] - 1
-        s = labels.loc[k, 4]
+    labels = np.array(labels)
+    observations = np.array(observations)
+    for k in range(len(labels)):
+        i = int(labels[k][0] - 1)
+        j = int(labels[k][1] - 1)
+        s = labels[k][4]
         l = d.setdefault(int(s), [])
-        l.append(observations.loc[i, j])
+        l.append(observations[i][j])
         d[int(s)] = l
 
     with open('frequency_' + str(N_OBS) + '_' + str(N_STATES) + '.json', 'w') as outfile:
@@ -61,20 +64,21 @@ def calculateDistribution(observations, labels):
     with open('frequency_' + str(N_OBS) + '_' + str(N_STATES) + '.json', 'r') as readfile:
         d = json.load(readfile)
 
-    for key, val in d.items():
-        d2 = {}
-        for i in range(N_OBS):
-            d2[i] = 0
+    # for key, val in d.items():
+    #     d2 = {}
+    #     for i in range(N_OBS):
+    #         d2[i] = 0
 
-        total = float(len(val))
-        for v in val:
-            d2[int(v)] += 1
+    #     total = float(len(val))
+    #     for v in val:
+    #         d2[int(v)] += 1
 
-        for key2, val2 in d2.items():
-            d2[key2] = d2[key2]/total
+    #     for key2, val2 in d2.items():
+    #         d2[key2] = d2[key2]/total
 
-        d[key] = d2
+    #     d[key] = d2
 
+    print len(d)
 
     dists = [None for _ in range(N_STATES)]
     d_filler = {}
@@ -83,6 +87,7 @@ def calculateDistribution(observations, labels):
     for i in range(len(dists)):
         if str(i) in d:
             distribution = DiscreteDistribution(d[str(i)])
+            # distribution = PoissonDistribution.from_samples(d[str(i)])
             dists[i] = distribution
         else:
             dists[i] = DiscreteDistribution(d_filler)
@@ -104,6 +109,11 @@ def createTransitionTable(observations, radius):
             neighbors = neighboringStates(grid, i, j, radius)
             for s in neighbors:
                 transition_mat[grid[i][j]][s] = 1.0/len(neighbors)
+            # for s in range(len(transition_mat[grid[i][j]])):
+            #     if s in neighbors:
+            #         transition_mat[grid[i][j]][s] = 1.0/(len(neighbors)+1)
+            #     else:
+            #         transition_mat[grid[i][j]][s] = (1.0/(len(neighbors)+1))/(len(transition_mat[grid[i][j]]) - len(neighbors))
     return transition_mat
 
 def neighboringStates(grid, i, j, radius):
@@ -119,7 +129,7 @@ def neighboringStates(grid, i, j, radius):
     return states
 
 def generateStates(observations, labels):
-    with open('frequency.json', 'r') as readfile:
+    with open('frequency_' + str(N_OBS) + '_' + str(N_STATES) + '.json', 'r') as readfile:
         d = json.load(readfile)
 
     for key, val in d.items():
@@ -134,11 +144,16 @@ def generateStates(observations, labels):
 
         d[key] = d2
 
+    d_filler = {}
+    for i in range(N_OBS):
+        d_filler[i] = 1.0/N_OBS
     states = [State(None) for _ in range(N_STATES)]
     for i in range(len(states)):
         if str(i) in d:
             distribution = DiscreteDistribution(d[str(i)])
             states[i] = State(distribution)
+        else:
+            states[i] = State(DiscreteDistribution(d_filler))
     return states
 
 def format_transitions(trans_mat, states, model):
@@ -160,8 +175,8 @@ def format_transitions(trans_mat, states, model):
 
 def HMM(observations, labels):
     # findDistribution(observations, labels)
-    dists = calculateDistribution(observations, labels)
-    trans_mat = createTransitionTable(observations, 8)
+    # dists = calculateDistribution(observations, labels)
+    trans_mat = createTransitionTable(observations, 2)
     starts = np.array([1.0/N_STATES for _ in range(N_STATES)])
 
     # starts = np.array([0.0 for _ in range(N_STATES)])
@@ -179,7 +194,15 @@ def HMM(observations, labels):
 
     print("Part1")
     state_names = [str(i) for i in range(N_STATES)]
-    model = HiddenMarkovModel.from_matrix(trans_mat, dists, starts, state_names=state_names)
+
+    states = generateStates(observations, labels)
+    model = HiddenMarkovModel('example')
+    model.add_states(states)
+
+    a, b, p = format_transitions(trans_mat, states, model)
+    model.add_transitions(a, b, p)
+    model.bake()
+    # model = HiddenMarkovModel.from_matrix(trans_mat, dists, starts, state_names=state_names)
 
     # res = []
     # for i in range(len(X)):
@@ -196,8 +219,8 @@ def HMM(observations, labels):
 
     print("Part2")
     seq = []
-    end = 10
-    skip = 5
+    end = 5
+    skip = 2
     for r in range(0, end):
         seq.append([X[r][i] for i in range(0, len(X[r]), skip)])
     model.fit(seq, algorithm='baum-welch')
@@ -250,20 +273,6 @@ def createSubmission(labels):
     sequences = np.array(pd.read_csv('sequences_' + str(N_OBS) + '_' + str(N_STATES) + '.csv', header=None))
     print(len(sequences))
 
-    labels = np.array(labels)
-    mapping = {}
-    for k in range(len(labels)):
-        x = np.array([labels[k][2], labels[k][3]])
-        s = labels[k][4]
-        l = mapping.setdefault(int(s), [])
-        l.append(x)
-        mapping[int(s)] = l
-
-    print(len(mapping))
-
-    for key, val in mapping.items():
-        mapping[key] = np.sum(val, 0)/float(len(val))
-
     #preview
     # output = sequences[0]
     # print(output[340-1])
@@ -283,6 +292,23 @@ def createSubmission(labels):
     # print(output[640-1])
     # print(output[500-1])
 
+    w = int(math.sqrt(N_STATES))
+
+    max_x = max(labels.loc[:,2])
+    min_x = min(labels.loc[:,2])
+    max_y = max(labels.loc[:,3])
+    min_y = min(labels.loc[:,3])
+    x_unit = (max_x - min_x)/w
+    y_unit = (max_y - min_y)/w
+
+    mapping = {}
+    for i in range(w):
+        for j in range(w):
+            x = min_x + x_unit*i + x_unit/2
+            y = min_y + y_unit*j + y_unit/2
+            s = i*w + j
+            mapping[int(s)] = [x, y]
+
     d = {}
     for i in range(len(sequences)):
         for j in range(len(sequences[i])-1):
@@ -293,16 +319,49 @@ def createSubmission(labels):
 
     submission = [['id', 'value']]
     for i in range(6000, len(sequences)):
-        s = max(d[sequences[i][-1]].iteritems(), key=operator.itemgetter(1))[0]
-        x, y = mapping[s]
+        if sequences[i][-1] in d:
+            s = max(d[sequences[i][-1]].iteritems(), key=operator.itemgetter(1))[0]
+            x, y = mapping[s]
+        else:
+            x, y = mapping[sequences[i][-1]]
         submission.append([str(i+1)+'x', x])
         submission.append([str(i+1)+'y', y])
 
     writeCSV(submission, "submission.csv", header=None)
 
+def HMM2(observations, labels):
+    print('Running HMM...')
+    X = np.array(observations)
+
+    model = hmm.GaussianHMM(n_components=64, n_iter=100)
+    model.startprob_ = np.array([1.0/N_STATES for _ in range(N_STATES)])
+    trans_mat = createTransitionTable(observations, 3)
+    model.transmat_ = trans_mat
+    print(trans_mat)
+    n_train = 7
+    seq = [[[v] for v in x] for x in X[:n_train]]
+    lengths = [len(x) for x in seq]
+    seq = np.concatenate(seq)
+    model.fit(seq, lengths)  
+
+    n_test = 7
+    seq = [[[v] for v in x] for x in X[:n_test]]
+    lengths = [len(x) for x in seq]
+    seq = np.concatenate(seq)
+    Z2 = model.predict(seq)
+    res = [Z2[1000*i:1000*(i+1)] for i in range(n_test)]
+    writeCSV(res, "res.csv", header=None)
+
+    print model.transmat_
+
+def createSubmission2(observations, labels):
+    pass
+
+
 if __name__ == "__main__":
     start = time.time()
     observations, labels = getData()
     # HMM(observations, labels)
-    createSubmission(labels)
+    # createSubmission(labels)
+    HMM2(observations, labels)
     print(time.time() - start)
