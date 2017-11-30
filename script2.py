@@ -7,11 +7,14 @@ import math
 from pomegranate import *
 import csv
 import json
-import cPickle as pickle
+import operator
 
 #change if necessary
-OBSERVATIONS_DATA_PATH = "./Observations_1000.csv"
-LABELS_PATH = "./Label_100.csv"
+N_OBS = 1000
+N_STATES = 100
+
+OBSERVATIONS_DATA_PATH = "./Observations_" + str(N_OBS) + ".csv"
+LABELS_PATH = "./Label_" + str(N_STATES) + ".csv"
 OFFSET = 0.00001
 
 def getData():
@@ -49,18 +52,18 @@ def findDistribution(observations, labels):
         l.append(observations.loc[i, j])
         d[int(s)] = l
 
-    with open('frequency3.json', 'w') as outfile:
+    with open('frequency_' + str(N_OBS) + '_' + str(N_STATES) + '.json', 'w') as outfile:
         json.dump(d, outfile)
 
-def calculateDistribution(observations, labels, n_states):
-    n_obs = 1000 #based on number of categories for observations
+def calculateDistribution(observations, labels):
+    print('Creating Distributions...')
 
-    with open('frequency3.json', 'r') as readfile:
+    with open('frequency_' + str(N_OBS) + '_' + str(N_STATES) + '.json', 'r') as readfile:
         d = json.load(readfile)
 
     for key, val in d.items():
         d2 = {}
-        for i in range(n_obs):
+        for i in range(N_OBS):
             d2[i] = 0
 
         total = float(len(val))
@@ -73,24 +76,28 @@ def calculateDistribution(observations, labels, n_states):
         d[key] = d2
 
 
-    dists = [None for _ in range(n_states)]
+    dists = [None for _ in range(N_STATES)]
     d_filler = {}
-    for i in range(n_obs):
-        d_filler[i] = 1.0/n_obs
+    for i in range(N_OBS):
+        d_filler[i] = 1.0/N_OBS
     for i in range(len(dists)):
         if str(i) in d:
             distribution = DiscreteDistribution(d[str(i)])
             dists[i] = distribution
         else:
             dists[i] = DiscreteDistribution(d_filler)
+    print(str(len(dists)) + "\n")
     return dists
 
 
-def createTransitionTable(observations, radius, n_states):
+def createTransitionTable(observations, radius):
     print('Creating Transition Probabilities...\n')
-    w = int(math.sqrt(n_states))
-    transition_mat = np.array([[0.0]*n_states for _ in range(n_states)])
-    grid = [[i + j for j in range(w)] for i in range(0, n_states, w)]
+    w = int(math.sqrt(N_STATES))
+    transition_mat = np.array([[0.0]*N_STATES for _ in range(N_STATES)])
+    grid = [[i + j for j in range(w)] for i in range(0, N_STATES, w)]
+
+    for i in range(len(grid)):
+        print grid[i]
 
     for i in range(len(grid)):
         for j in range(len(grid[i])):
@@ -111,7 +118,7 @@ def neighboringStates(grid, i, j, radius):
             states.append(grid[i][j])
     return states
 
-def generateStates(observations, labels, n_states):
+def generateStates(observations, labels):
     with open('frequency.json', 'r') as readfile:
         d = json.load(readfile)
 
@@ -127,7 +134,7 @@ def generateStates(observations, labels, n_states):
 
         d[key] = d2
 
-    states = [State(None) for _ in range(n_states)]
+    states = [State(None) for _ in range(N_STATES)]
     for i in range(len(states)):
         if str(i) in d:
             distribution = DiscreteDistribution(d[str(i)])
@@ -152,59 +159,150 @@ def format_transitions(trans_mat, states, model):
     return a, b, p
 
 def HMM(observations, labels):
-    n_states = 100  #Change based on Label
     # findDistribution(observations, labels)
-    dists = calculateDistribution(observations, labels, n_states)
-    trans_mat = createTransitionTable(observations, 3, n_states)
-    starts = np.array([1.0/n_states for _ in range(n_states)])
+    dists = calculateDistribution(observations, labels)
+    trans_mat = createTransitionTable(observations, 8)
+    starts = np.array([1.0/N_STATES for _ in range(N_STATES)])
+
+    # starts = np.array([0.0 for _ in range(N_STATES)])
+    # for i in range(50, 100, 10):
+    #     for j in range(5, 10):
+    #         starts[i+j] = 1.0/25.0
+    # print starts
+
+
+    print(len(trans_mat))
+    print(len(trans_mat[0]))
 
     print('Running HMM...')
     X = np.array(observations)
 
     print("Part1")
-    # model = HiddenMarkovModel()
-
-    # states = generateStates(observations, labels, n_states)
-
-    # model.add_states(states)
-
-    # a, b, p = format_transitions(trans_mat, states, model)
-
-    # model.add_transitions(a, b, p)
-    # model.bake(verbose=False)
-    state_names = [str(i) for i in range(n_states)]
+    state_names = [str(i) for i in range(N_STATES)]
     model = HiddenMarkovModel.from_matrix(trans_mat, dists, starts, state_names=state_names)
 
+    # res = []
+    # for i in range(len(X)):
+    #     sequence = [state.name for i, state in model.viterbi(X[i])[1]]
+    #     res.append(np.array(sequence[1:]).astype(str))
+    # writeCSV(np.array(res), 'sequences_' + str(N_OBS) + '_' + str(N_STATES) + '.csv', header=None)
+
     # data = model.to_json()
-    # with open('model.txt', 'w') as outfile:
+    # with open('model_' + str(N_OBS) + '_' + str(N_STATES) + '.json', 'w') as outfile:
     #     json.dump(data, outfile)
 
+    # with open('model_' + str(N_OBS) + '_' + str(N_STATES) + '.json', 'r') as json_data:
+    #     model = HiddenMarkovModel.from_json(json.load(json_data))
+
     print("Part2")
-    model.fit(X, algorithm='baum-welch')
-    # model.fit(X, algorithm='baum-welch')
+    seq = []
+    end = 10
+    skip = 5
+    for r in range(0, end):
+        seq.append([X[r][i] for i in range(0, len(X[r]), skip)])
+    model.fit(seq, algorithm='baum-welch')
 
     print("Part3")
-    output = [state.name for i, state in model.viterbi(X[0])[1]]
-    print(output[340])
-    print(output[808])
-    print(output[991])
-    print(output[734])
-    print(output[247])
-    print(output[719])
-    print(output[317])
-    print(output[404])
+    output = [state.name for i, state in model.viterbi(seq[0])[1]]
+    print(output[340/skip])
+    print(output[500/skip])
+    print(output[830/skip])
+    print(output[920/skip])
+    print(output[960/skip])
+    print(output[970/skip])
+    # print(output[808/skip])
+    # print(output[404/skip])
+    print('')
 
+    output = [state.name for i, state in model.viterbi(seq[1])[1]]
 
-    res = []
-    for i in range(n_states):
-        res.append(np.array([str(state.name) for i, state in model.viterbi(X[i])[1]]))
-    writeCSV(np.array(res), 'res2.csv', header=None)
-    # print("Part3")
-    # res = model.predict(X[0], algorithm='viterbi')
-    # print res 
+    print(output[800/skip])
+    print(output[920/skip])
+    print(output[660/skip])
+    print(output[640/skip])
+    print(output[500/skip])
+
+    # d = {}
+    # for i in range(1,len(output)-1):
+    #     d2 = d.setdefault(output[i], {})
+    #     count = d2.setdefault(output[i+1], 0)
+    #     d2[output[i+1]] = count + 1
+    #     d[output[i]] = d2
+
+    # for i in range(1,len(output2)-1):
+    #     d2 = d.setdefault(output2[i], {})
+    #     count = d2.setdefault(output2[i+1], 0)
+    #     d2[output2[i+1]] = count + 1
+    #     d[output2[i]] = d2
+
+    # for i in range(1,len(output3)-1):
+    #     d2 = d.setdefault(output3[i], {})
+    #     count = d2.setdefault(output3[i+1], 0)
+    #     d2[output3[i+1]] = count + 1
+    #     d[output3[i]] = d2
+
+    # print d[output[-1]]
+    # print(model.viterbi(test)[1])
+
+def createSubmission(labels):
+    print('Creating submission...')
+
+    sequences = np.array(pd.read_csv('sequences_' + str(N_OBS) + '_' + str(N_STATES) + '.csv', header=None))
+    print(len(sequences))
+
+    labels = np.array(labels)
+    mapping = {}
+    for k in range(len(labels)):
+        x = np.array([labels[k][2], labels[k][3]])
+        s = labels[k][4]
+        l = mapping.setdefault(int(s), [])
+        l.append(x)
+        mapping[int(s)] = l
+
+    print(len(mapping))
+
+    for key, val in mapping.items():
+        mapping[key] = np.sum(val, 0)/float(len(val))
+
+    #preview
+    # output = sequences[0]
+    # print(output[340-1])
+    # print(output[500-1])
+    # print(output[830-1])
+    # print(output[920-1])
+    # print(output[960-1])
+    # print(output[970-1])
+    # print(output[808-1])
+    # print(output[404-1])
+    # print('')
+
+    # output = sequences[1]
+    # print(output[800-1])
+    # print(output[920-1])
+    # print(output[660-1])
+    # print(output[640-1])
+    # print(output[500-1])
+
+    d = {}
+    for i in range(len(sequences)):
+        for j in range(len(sequences[i])-1):
+            d2 = d.setdefault(sequences[i][j], {})
+            count = d2.setdefault(sequences[i][j+1], 0)
+            d2[sequences[i][j+1]] = count + 1
+            d[sequences[i][j]] = d2
+
+    submission = [['id', 'value']]
+    for i in range(6000, len(sequences)):
+        s = max(d[sequences[i][-1]].iteritems(), key=operator.itemgetter(1))[0]
+        x, y = mapping[s]
+        submission.append([str(i+1)+'x', x])
+        submission.append([str(i+1)+'y', y])
+
+    writeCSV(submission, "submission.csv", header=None)
 
 if __name__ == "__main__":
     start = time.time()
     observations, labels = getData()
-    HMM(observations, labels)
+    # HMM(observations, labels)
+    createSubmission(labels)
     print(time.time() - start)

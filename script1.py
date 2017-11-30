@@ -29,6 +29,7 @@ def discretizeObs(obs, size=100):
     unit = (maxVal - minVal)/size + OFFSET
 
     data = []
+    #this part would be faster if it was numpy object oops
     for i in range(obs.shape[0]):
         temp = []
         for j in range(obs.shape[1]):
@@ -62,7 +63,7 @@ def discretizeHidden(labels, size=10000):
     y_unit = (max_y - min_y)/w + OFFSET
 
     states = []
-
+    #this part would be faster if it was numpy object oops
     for k in range(labels.shape[0]):
         x = labels.loc[k,2]
         y = labels.loc[k,3]
